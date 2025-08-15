@@ -1,0 +1,10 @@
+{
+  "Author": "Ny",
+  "Name": "Hyperfocus",
+  "Punchline": "Out of sight, still in mind.",
+  "Description": "Points towards your targets when they're off-screen.",
+  "ApplicableVersion": "any",
+  "Tags": [
+    "target"
+  ]
+}
