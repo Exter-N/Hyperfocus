@@ -21,6 +21,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static ITargetManager TargetManager { get; private set; } = null!;
     [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
     [PluginService] internal static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
+    [PluginService] internal static IClientState ClientState { get; private set; } = null!;
 
     [Signature("E8 ?? ?? ?? ?? 48 89 43 FB")]
     private GetTargetColorsDelegate GetTargetColors = null!;
@@ -72,31 +73,33 @@ public sealed class Plugin : IDalamudPlugin
 
     private void DrawUI()
     {
-        DrawMarkers();
+        DrawCursors();
         WindowSystem.Draw();
     }
 
     public void ToggleConfigUI()
         => ConfigWindow.Toggle();
 
-    private void DrawMarkers()
+    private void DrawCursors()
     {
+        if (ClientState.IsPvP) return;
+        
         if (Configuration.DisplayForTarget)
         {
             var target = TargetManager.Target;
             if (target is not null)
-                DrawMarker(target, false);
+                DrawCursor(target, false);
         }
 
         if (Configuration.DisplayForFocusTarget)
         {
             var focusTarget = TargetManager.FocusTarget;
             if (focusTarget is not null)
-                DrawMarker(focusTarget, true);
+                DrawCursor(focusTarget, true);
         }
     }
     
-    private unsafe void DrawMarker(IGameObject target, bool isFocus)
+    private unsafe void DrawCursor(IGameObject target, bool isFocus)
     {
         var gameObject = (GameObject*)target.Address;
         var fillColor = ColorHelpers.RgbaUintToVector4(unchecked((uint)(GetTargetColors(gameObject) >> 32)));

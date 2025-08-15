@@ -1,5 +1,9 @@
 ﻿using System;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
+using Dalamud.Interface.Colors;
+using Dalamud.Interface.Style;
+using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 
 namespace Hyperfocus;
@@ -27,6 +31,12 @@ public class ConfigWindow : Window, IDisposable
     {
         DrawBehavior();
         DrawLayout();
+
+        ImGui.Dummy(new(16.0f, 16.0f));
+        using (ImRaii.PushColor(ImGuiCol.Text, ColorHelpers.RgbaVector4ToUint(ImGuiColors.DalamudOrange)))
+        {
+            ImGui.TextWrapped("Please note that this plugin will not work in PvP, so as not to give an unfair advantage to its users."u8);
+        }
     }
 
     public void DrawBehavior()
