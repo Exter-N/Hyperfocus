@@ -84,22 +84,16 @@ public sealed class Plugin : IDalamudPlugin
     {
         if (ClientState.IsPvP) return;
         
-        if (Configuration.DisplayForTarget)
-        {
-            var target = TargetManager.Target;
-            if (target is not null)
-                DrawCursor(target, false);
-        }
+        var target = TargetManager.Target;
+        var focusTarget = TargetManager.FocusTarget;
+        if (Configuration.DisplayForTarget && target is not null)
+            DrawCursor(target, false, true);
 
-        if (Configuration.DisplayForFocusTarget)
-        {
-            var focusTarget = TargetManager.FocusTarget;
-            if (focusTarget is not null)
-                DrawCursor(focusTarget, true);
-        }
+        if (Configuration.DisplayForFocusTarget && focusTarget is not null)
+            DrawCursor(focusTarget, true, focusTarget.Address == (target?.Address ?? 0));
     }
     
-    private unsafe void DrawCursor(IGameObject target, bool isFocus)
+    private unsafe void DrawCursor(IGameObject target, bool isFocus, bool isSameAsTarget)
     {
         var gameObject = (GameObject*)target.Address;
         var fillColor = ColorHelpers.RgbaUintToVector4(unchecked((uint)(GetTargetColors(gameObject) >> 32)));
@@ -108,6 +102,7 @@ public sealed class Plugin : IDalamudPlugin
         var inView =
             GameGui.WorldToScreen(new Vector3(position[0], position[1], position[2]), out var screenPos);
         if (inView) return;
+        if (isSameAsTarget && GameGui.WorldToScreen(target.Position, out _)) return;
 
         var halfViewport = ImGui.GetMainViewport().Size * 0.5f;
         var center = ImGui.GetMainViewport().Pos + halfViewport;
