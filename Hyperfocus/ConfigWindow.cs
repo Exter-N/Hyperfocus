@@ -35,7 +35,8 @@ public class ConfigWindow : Window, IDisposable
         ImGui.Dummy(new(16.0f, 16.0f));
         using (ImRaii.PushColor(ImGuiCol.Text, ColorHelpers.RgbaVector4ToUint(ImGuiColors.DalamudOrange)))
         {
-            ImGui.TextWrapped("Please note that this plugin will not work in PvP, so as not to give an unfair advantage to its users."u8);
+            ImGui.TextWrapped(
+                "Please note that this plugin will not work in PvP or in duties, so as not to give an unfair advantage to its users."u8);
         }
     }
 
@@ -43,14 +44,14 @@ public class ConfigWindow : Window, IDisposable
     {
         if (!ImGui.CollapsingHeader("Behavior"u8, ImGuiTreeNodeFlags.DefaultOpen))
             return;
-        
+
         var displayForTarget = configuration.DisplayForTarget;
         if (ImGui.Checkbox("Display for Target"u8, ref displayForTarget))
         {
             configuration.DisplayForTarget = displayForTarget;
             configuration.Save();
         }
-        
+
         var displayForFocusTarget = configuration.DisplayForFocusTarget;
         if (ImGui.Checkbox("Display for Focus Target"u8, ref displayForFocusTarget))
         {

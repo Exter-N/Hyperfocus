@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Game.Command;
@@ -24,6 +25,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
     [PluginService] internal static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
     [PluginService] internal static IClientState ClientState { get; private set; } = null!;
+    [PluginService] internal static ICondition Condition { get; private set; } = null!;
 
     // TODO ClientStructs-ify (#1539)
     [Signature("E8 ?? ?? ?? ?? 48 89 43 FB")]
@@ -31,7 +33,7 @@ public sealed class Plugin : IDalamudPlugin
 
     [Signature("E8 ?? ?? ?? ?? 48 85 FF 0F 84 ?? ?? ?? ?? F3 0F 10 97")]
     private GetNameplateWorldPositionDelegate getNameplateWorldPosition = null!;
-    
+
     private unsafe delegate ulong GetTargetColorsDelegate(GameObject* gameObject);
     private unsafe delegate float* GetNameplateWorldPositionDelegate(GameObject* gameObject, float* vector);
 
@@ -39,14 +41,14 @@ public sealed class Plugin : IDalamudPlugin
 
     private readonly WindowSystem windowSystem = new("Hyperfocus");
     private readonly UldWrapper targetCursorUld;
-    
+
     public Configuration Configuration { get; init; }
     private ConfigWindow ConfigWindow { get; init; }
 
     public Plugin()
     {
         GameInteropProvider.InitializeFromAttributes(this);
-        
+
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
         ConfigWindow = new ConfigWindow(this);
@@ -56,7 +58,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             HelpMessage = "Open settings",
         });
-        
+
         targetCursorUld = PluginInterface.UiBuilder.LoadUld("ui/uld/TargetCursor.uld");
 
         PluginInterface.UiBuilder.Draw += DrawUi;
@@ -85,8 +87,10 @@ public sealed class Plugin : IDalamudPlugin
 
     private void DrawCursors()
     {
-        if (ClientState.IsPvP) return;
-        
+        if (ClientState.IsPvP ||
+            Condition.Any(ConditionFlag.BoundByDuty, ConditionFlag.BoundByDuty56, ConditionFlag.BoundByDuty95) &&
+            Condition.Any(ConditionFlag.InCombat)) return;
+
         var target = TargetManager.Target;
         var focusTarget = TargetManager.FocusTarget;
         if (Configuration.DisplayForTarget && target is not null)
@@ -124,7 +128,7 @@ public sealed class Plugin : IDalamudPlugin
         direction = Vector2.Lerp(screenDirection, angularDirection, mix);
         return true;
     }
-    
+
     private unsafe void DrawCursor(IGameObject target, bool isFocus, bool isSameAsTarget)
     {
         if (!TryGetDirection(target, isSameAsTarget, out var screenPosCenterRelative)) return;
@@ -153,7 +157,7 @@ public sealed class Plugin : IDalamudPlugin
             var topRight = bottomRight - ((float)layer1.Height / layer1.Width) * yAxis;
             backgroundDrawList.AddImageQuad(layer1.Handle, topLeft, topRight, bottomRight, bottomLeft);
         }
-        
+
         var layer2 = targetCursorUld.LoadTexturePart("ui/uld/TargetCursor.tex", isFocus ? 5 : 3);
         if (layer2 is not null)
         {
