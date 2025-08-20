@@ -10,7 +10,9 @@ using Dalamud.Plugin;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using Dalamud.Utility.Signatures;
+using FFXIVClientStructs.FFXIV.Client.Game.Control;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using CSVector3 = FFXIVClientStructs.FFXIV.Common.Math.Vector3;
 
 namespace Hyperfocus;
 
@@ -23,19 +25,20 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
     [PluginService] internal static IClientState ClientState { get; private set; } = null!;
 
+    // TODO ClientStructs-ify (#1539)
     [Signature("E8 ?? ?? ?? ?? 48 89 43 FB")]
-    private GetTargetColorsDelegate GetTargetColors = null!;
+    private GetTargetColorsDelegate getTargetColors = null!;
 
     [Signature("E8 ?? ?? ?? ?? 48 85 FF 0F 84 ?? ?? ?? ?? F3 0F 10 97")]
-    private GetNameplateWorldPositionDelegate GetNameplateWorldPosition = null!;
+    private GetNameplateWorldPositionDelegate getNameplateWorldPosition = null!;
     
     private unsafe delegate ulong GetTargetColorsDelegate(GameObject* gameObject);
     private unsafe delegate float* GetNameplateWorldPositionDelegate(GameObject* gameObject, float* vector);
 
     private const string CommandName = "/phfocus";
 
-    private readonly WindowSystem WindowSystem = new("Hyperfocus");
-    private readonly UldWrapper TargetCursorUld;
+    private readonly WindowSystem windowSystem = new("Hyperfocus");
+    private readonly UldWrapper targetCursorUld;
     
     public Configuration Configuration { get; init; }
     private ConfigWindow ConfigWindow { get; init; }
@@ -47,37 +50,37 @@ public sealed class Plugin : IDalamudPlugin
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
         ConfigWindow = new ConfigWindow(this);
-        WindowSystem.AddWindow(ConfigWindow);
+        windowSystem.AddWindow(ConfigWindow);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
             HelpMessage = "Open settings",
         });
         
-        TargetCursorUld = PluginInterface.UiBuilder.LoadUld("ui/uld/TargetCursor.uld");
+        targetCursorUld = PluginInterface.UiBuilder.LoadUld("ui/uld/TargetCursor.uld");
 
-        PluginInterface.UiBuilder.Draw += DrawUI;
-        PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUI;
+        PluginInterface.UiBuilder.Draw += DrawUi;
+        PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
     }
 
     public void Dispose()
     {
-        WindowSystem.RemoveAllWindows();
+        windowSystem.RemoveAllWindows();
         ConfigWindow.Dispose();
 
         CommandManager.RemoveHandler(CommandName);
     }
 
     private void OnCommand(string command, string args)
-        => ToggleConfigUI();
+        => ToggleConfigUi();
 
-    private void DrawUI()
+    private void DrawUi()
     {
         DrawCursors();
-        WindowSystem.Draw();
+        windowSystem.Draw();
     }
 
-    public void ToggleConfigUI()
+    public void ToggleConfigUi()
         => ConfigWindow.Toggle();
 
     private void DrawCursors()
@@ -92,32 +95,56 @@ public sealed class Plugin : IDalamudPlugin
         if (Configuration.DisplayForFocusTarget && focusTarget is not null)
             DrawCursor(focusTarget, true, focusTarget.Address == (target?.Address ?? 0));
     }
+
+    private unsafe bool TryGetDirection(IGameObject obj, bool isSameAsTarget, out Vector2 direction)
+    {
+        var gameObject = (GameObject*)obj.Address;
+        var position = stackalloc float[3];
+        getNameplateWorldPosition(gameObject, position);
+        var positionVec = new CSVector3(position[0], position[1], position[2]);
+        var inView = GameGui.WorldToScreen(positionVec, out _);
+
+        if (inView || isSameAsTarget && GameGui.WorldToScreen(obj.Position, out _))
+        {
+            direction = Vector2.Zero;
+            return false;
+        }
+
+        ref var camera = ref Control.Instance()->CameraManager.GetActiveCamera()->SceneCamera;
+        var lookAtDirection = (camera.LookAtVector - camera.Position).Normalized;
+        var plateDirection = (positionVec - camera.Position).Normalized;
+        var viewDirection = CSVector3.Transform(positionVec, camera.ViewMatrix).Normalized;
+        var screenDirection = Vector2.Normalize(new Vector2(viewDirection.X, -viewDirection.Y));
+        var yaw = WrapAngle(MathF.Atan2(plateDirection.X, -plateDirection.Z) -
+                            MathF.Atan2(lookAtDirection.X, -lookAtDirection.Z));
+        var roll = MathF.Asin(plateDirection.Y) - MathF.Asin(lookAtDirection.Y);
+        var angularDirection = Vector2.Normalize(new Vector2(yaw, -roll));
+        var mix = Smoothstep(Saturate(viewDirection.Z * 0.5f + 0.5f));
+
+        direction = Vector2.Lerp(screenDirection, angularDirection, mix);
+        return true;
+    }
     
     private unsafe void DrawCursor(IGameObject target, bool isFocus, bool isSameAsTarget)
     {
+        if (!TryGetDirection(target, isSameAsTarget, out var screenPosCenterRelative)) return;
+
         var gameObject = (GameObject*)target.Address;
-        var fillColor = ColorHelpers.RgbaUintToVector4(unchecked((uint)(GetTargetColors(gameObject) >> 32)));
-        var position = stackalloc float[3];
-        GetNameplateWorldPosition(gameObject, position);
-        var inView =
-            GameGui.WorldToScreen(new Vector3(position[0], position[1], position[2]), out var screenPos);
-        if (inView) return;
-        if (isSameAsTarget && GameGui.WorldToScreen(target.Position, out _)) return;
+        var fillColor = ColorHelpers.RgbaUintToVector4(unchecked((uint)(getTargetColors(gameObject) >> 32)));
 
         var halfViewport = ImGui.GetMainViewport().Size * 0.5f;
         var center = ImGui.GetMainViewport().Pos + halfViewport;
         halfViewport -= new Vector2(Configuration.Padding);
-        var screenPosCenterRelative = screenPos - center;
         var ratio = MathF.Max(MathF.Abs(screenPosCenterRelative.X) / halfViewport.X,
                               MathF.Abs(screenPosCenterRelative.Y) / halfViewport.Y);
         var edgePosCenterRelative = screenPosCenterRelative / ratio;
         var edgePos = edgePosCenterRelative + center;
         var yAxis = Vector2.Normalize(edgePosCenterRelative) * Configuration.Width;
         var xAxis = new Vector2(yAxis.Y, -yAxis.X);
-        
+
         var backgroundDrawList = ImGui.GetBackgroundDrawList();
 
-        var layer1 = TargetCursorUld.LoadTexturePart("ui/uld/TargetCursor.tex", isFocus ? 4 : 2);
+        var layer1 = targetCursorUld.LoadTexturePart("ui/uld/TargetCursor.tex", isFocus ? 4 : 2);
         if (layer1 is not null)
         {
             var bottomLeft = edgePos - 0.5f * xAxis;
@@ -127,7 +154,7 @@ public sealed class Plugin : IDalamudPlugin
             backgroundDrawList.AddImageQuad(layer1.Handle, topLeft, topRight, bottomRight, bottomLeft);
         }
         
-        var layer2 = TargetCursorUld.LoadTexturePart("ui/uld/TargetCursor.tex", isFocus ? 5 : 3);
+        var layer2 = targetCursorUld.LoadTexturePart("ui/uld/TargetCursor.tex", isFocus ? 5 : 3);
         if (layer2 is not null)
         {
             var bottomLeft = edgePos - 0.5f * xAxis;
@@ -139,6 +166,15 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
+    private static float Saturate(float vector)
+        => float.Clamp(vector, 0.0f, 1.0f);
+
     private static Vector4 Saturate(Vector4 vector)
         => Vector4.Clamp(vector, Vector4.Zero, Vector4.One);
+
+    private static float WrapAngle(float angle)
+        => angle > MathF.PI ? angle - MathF.Tau : angle <= -MathF.PI ? angle + MathF.Tau : angle;
+
+    private static float Smoothstep(float value)
+        => value * value * (3.0f - 2.0f * value);
 }

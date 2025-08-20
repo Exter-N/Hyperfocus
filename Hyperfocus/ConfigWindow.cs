@@ -10,7 +10,7 @@ namespace Hyperfocus;
 
 public class ConfigWindow : Window, IDisposable
 {
-    private Configuration Configuration;
+    private readonly Configuration configuration;
 
     public ConfigWindow(Plugin plugin) : base("Hyperfocus Settings")
     {
@@ -22,7 +22,7 @@ public class ConfigWindow : Window, IDisposable
             MaximumSize = new(512, 288),
         };
 
-        Configuration = plugin.Configuration;
+        configuration = plugin.Configuration;
     }
 
     public void Dispose() { }
@@ -44,18 +44,18 @@ public class ConfigWindow : Window, IDisposable
         if (!ImGui.CollapsingHeader("Behavior"u8, ImGuiTreeNodeFlags.DefaultOpen))
             return;
         
-        var displayForTarget = Configuration.DisplayForTarget;
+        var displayForTarget = configuration.DisplayForTarget;
         if (ImGui.Checkbox("Display for Target"u8, ref displayForTarget))
         {
-            Configuration.DisplayForTarget = displayForTarget;
-            Configuration.Save();
+            configuration.DisplayForTarget = displayForTarget;
+            configuration.Save();
         }
         
-        var displayForFocusTarget = Configuration.DisplayForFocusTarget;
+        var displayForFocusTarget = configuration.DisplayForFocusTarget;
         if (ImGui.Checkbox("Display for Focus Target"u8, ref displayForFocusTarget))
         {
-            Configuration.DisplayForFocusTarget = displayForFocusTarget;
-            Configuration.Save();
+            configuration.DisplayForFocusTarget = displayForFocusTarget;
+            configuration.Save();
         }
     }
 
@@ -64,20 +64,20 @@ public class ConfigWindow : Window, IDisposable
         if (!ImGui.CollapsingHeader("Layout"u8, ImGuiTreeNodeFlags.DefaultOpen))
             return;
 
-        var padding = Configuration.Padding;
+        var padding = configuration.Padding;
         ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X * 0.33f);
         if (ImGui.DragFloat("Padding from Window Edge"u8, ref padding, 0.25f, 0.0f, 64.0f, "%.0f"))
         {
-            Configuration.Padding = padding;
-            Configuration.Save();
+            configuration.Padding = padding;
+            configuration.Save();
         }
 
-        var width = Configuration.Width;
+        var width = configuration.Width;
         ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X * 0.33f);
         if (ImGui.DragFloat("Cursor Width", ref width, 1.0f, 8.0f, 288.0f, "%.0f"))
         {
-            Configuration.Width = width;
-            Configuration.Save();
+            configuration.Width = width;
+            configuration.Save();
         }
     }
 }
