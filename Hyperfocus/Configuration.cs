@@ -10,7 +10,9 @@ public class Configuration : IPluginConfiguration
 
     public bool DisplayForTarget { get; set; } = true;
     public bool DisplayForFocusTarget { get; set; } = true;
-    
+
+    public bool DisplayDespiteTargetCircle { get; set; } = false;
+
     public float Width { get; set; } = 72.0f;
     public float Padding { get; set; } = 8.0f;
 

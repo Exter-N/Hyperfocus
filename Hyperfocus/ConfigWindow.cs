@@ -52,6 +52,16 @@ public class ConfigWindow : Window, IDisposable
             configuration.Save();
         }
 
+        using (ImRaii.PushIndent())
+        {
+            var displayDespiteTargetCircle = configuration.DisplayDespiteTargetCircle;
+            if (ImGui.Checkbox("Even if the Target Circle is in view"u8, ref displayDespiteTargetCircle))
+            {
+                configuration.DisplayDespiteTargetCircle = displayDespiteTargetCircle;
+                configuration.Save();
+            }
+        }
+
         var displayForFocusTarget = configuration.DisplayForFocusTarget;
         if (ImGui.Checkbox("Display for Focus Target"u8, ref displayForFocusTarget))
         {
