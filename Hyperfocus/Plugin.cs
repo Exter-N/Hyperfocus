@@ -112,7 +112,7 @@ public sealed class Plugin : IDalamudPlugin
         var positionVec = new CSVector3(position[0], position[1], position[2]);
         var inView = GameGui.WorldToScreen(positionVec, out _);
 
-        if (inView || isSameAsTarget && GameGui.WorldToScreen(obj.Position, out _))
+        if (inView || isSameAsTarget && obj is ICharacter && GameGui.WorldToScreen(obj.Position, out _))
         {
             direction = Vector2.Zero;
             return false;
