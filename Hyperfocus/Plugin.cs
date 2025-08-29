@@ -26,6 +26,9 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
     [PluginService] internal static IClientState ClientState { get; private set; } = null!;
     [PluginService] internal static ICondition Condition { get; private set; } = null!;
+    [PluginService] internal static ITextureProvider TextureProvider { get; private set; } = null!;
+    [PluginService] internal static ITextureSubstitutionProvider TextureSubstitutionProvider { get; private set; } = null!;
+    [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
 
     // TODO ClientStructs-ify (#1539)
     [Signature("E8 ?? ?? ?? ?? 48 89 43 FB")]
@@ -40,7 +43,7 @@ public sealed class Plugin : IDalamudPlugin
     private const string CommandName = "/phfocus";
 
     private readonly WindowSystem windowSystem = new("Hyperfocus");
-    private readonly UldWrapper targetCursorUld;
+    private readonly CursorProvider cursorProvider;
 
     public Configuration Configuration { get; init; }
     private ConfigWindow ConfigWindow { get; init; }
@@ -59,7 +62,8 @@ public sealed class Plugin : IDalamudPlugin
             HelpMessage = "Open settings",
         });
 
-        targetCursorUld = PluginInterface.UiBuilder.LoadUld("ui/uld/TargetCursor.uld");
+        cursorProvider = new CursorProvider(TextureProvider, PluginInterface.UiBuilder, TextureSubstitutionProvider,
+                                            DataManager);
 
         PluginInterface.UiBuilder.Draw += DrawUi;
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
@@ -134,7 +138,7 @@ public sealed class Plugin : IDalamudPlugin
         if (!TryGetDirection(target, isSameAsTarget, out var screenPosCenterRelative)) return;
 
         var gameObject = (GameObject*)target.Address;
-        var fillColor = ColorHelpers.RgbaUintToVector4(unchecked((uint)(getTargetColors(gameObject) >> 32)));
+        var targetColors = getTargetColors(gameObject);
 
         var halfViewport = ImGui.GetMainViewport().Size * 0.5f;
         var center = ImGui.GetMainViewport().Pos + halfViewport;
@@ -148,33 +152,24 @@ public sealed class Plugin : IDalamudPlugin
 
         var backgroundDrawList = ImGui.GetBackgroundDrawList();
 
-        var layer1 = targetCursorUld.LoadTexturePart("ui/uld/TargetCursor.tex", isFocus ? 4 : 2);
-        if (layer1 is not null)
-        {
-            var bottomLeft = edgePos - 0.5f * xAxis;
-            var bottomRight = edgePos + 0.5f * xAxis;
-            var topLeft = bottomLeft - ((float)layer1.Height / layer1.Width) * yAxis;
-            var topRight = bottomRight - ((float)layer1.Height / layer1.Width) * yAxis;
-            backgroundDrawList.AddImageQuad(layer1.Handle, topLeft, topRight, bottomRight, bottomLeft);
-        }
+        var layer = cursorProvider.GetTintedCursorPart(
+            isFocus ? CursorProvider.FocusEdgePart : CursorProvider.TargetEdgePart, unchecked((uint)targetColors));
+        var bottomLeft = edgePos - 0.5f * xAxis;
+        var bottomRight = edgePos + 0.5f * xAxis;
+        var topLeft = bottomLeft - ((float)layer.Height / layer.Width) * yAxis;
+        var topRight = bottomRight - ((float)layer.Height / layer.Width) * yAxis;
+        backgroundDrawList.AddImageQuad(layer.Handle, topLeft, topRight, bottomRight, bottomLeft);
 
-        var layer2 = targetCursorUld.LoadTexturePart("ui/uld/TargetCursor.tex", isFocus ? 5 : 3);
-        if (layer2 is not null)
-        {
-            var bottomLeft = edgePos - 0.5f * xAxis;
-            var bottomRight = edgePos + 0.5f * xAxis;
-            var topLeft = bottomLeft - ((float)layer2.Height / layer2.Width) * yAxis;
-            var topRight = bottomRight - ((float)layer2.Height / layer2.Width) * yAxis;
-            backgroundDrawList.AddImageQuad(layer2.Handle, topLeft, topRight, bottomRight, bottomLeft,
-                                            ColorHelpers.RgbaVector4ToUint(Saturate(fillColor + new Vector4(0.3725f))));
-        }
+        layer = cursorProvider.GetTintedCursorPart(
+            isFocus ? CursorProvider.FocusFillPart : CursorProvider.TargetFillPart,
+            unchecked((uint)(targetColors >> 32)));
+        topLeft = bottomLeft - ((float)layer.Height / layer.Width) * yAxis;
+        topRight = bottomRight - ((float)layer.Height / layer.Width) * yAxis;
+        backgroundDrawList.AddImageQuad(layer.Handle, topLeft, topRight, bottomRight, bottomLeft);
     }
 
     private static float Saturate(float vector)
         => float.Clamp(vector, 0.0f, 1.0f);
-
-    private static Vector4 Saturate(Vector4 vector)
-        => Vector4.Clamp(vector, Vector4.Zero, Vector4.One);
 
     private static float WrapAngle(float angle)
         => angle > MathF.PI ? angle - MathF.Tau : angle <= -MathF.PI ? angle + MathF.Tau : angle;
