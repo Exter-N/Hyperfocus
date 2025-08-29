@@ -16,8 +16,8 @@ public class CursorProvider
 
     public const int TargetEdgePart = 0;
     public const int TargetFillPart = 1;
-    public const int FocusEdgePart = 2;
-    public const int FocusFillPart = 3;
+    public const int FocusEdgePart = 3;
+    public const int FocusFillPart = 2;
 
     private readonly ITextureProvider textureProvider;
     private readonly int pixelRatio;
