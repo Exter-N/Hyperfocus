@@ -23,22 +23,11 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
     [PluginService] internal static ITargetManager TargetManager { get; private set; } = null!;
     [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
-    [PluginService] internal static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
     [PluginService] internal static IClientState ClientState { get; private set; } = null!;
     [PluginService] internal static ICondition Condition { get; private set; } = null!;
     [PluginService] internal static ITextureProvider TextureProvider { get; private set; } = null!;
     [PluginService] internal static ITextureSubstitutionProvider TextureSubstitutionProvider { get; private set; } = null!;
     [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
-
-    // TODO ClientStructs-ify (#1539)
-    [Signature("E8 ?? ?? ?? ?? 48 89 43 FB")]
-    private GetTargetColorsDelegate getTargetColors = null!;
-
-    [Signature("E8 ?? ?? ?? ?? 48 85 FF 0F 84 ?? ?? ?? ?? F3 0F 10 97")]
-    private GetNameplateWorldPositionDelegate getNameplateWorldPosition = null!;
-
-    private unsafe delegate ulong GetTargetColorsDelegate(GameObject* gameObject);
-    private unsafe delegate float* GetNameplateWorldPositionDelegate(GameObject* gameObject, float* vector);
 
     private const string CommandName = "/phfocus";
 
@@ -50,8 +39,6 @@ public sealed class Plugin : IDalamudPlugin
 
     public Plugin()
     {
-        GameInteropProvider.InitializeFromAttributes(this);
-
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
         ConfigWindow = new ConfigWindow(this);
@@ -107,9 +94,9 @@ public sealed class Plugin : IDalamudPlugin
     private unsafe bool TryGetDirection(IGameObject obj, bool isSameAsTarget, out Vector2 direction)
     {
         var gameObject = (GameObject*)obj.Address;
-        var position = stackalloc float[3];
-        getNameplateWorldPosition(gameObject, position);
-        var positionVec = new CSVector3(position[0], position[1], position[2]);
+        var position = stackalloc CSVector3[1];
+        gameObject->GetNamePlateWorldPosition(position);
+        var positionVec = *position;
         var inView = GameGui.WorldToScreen(positionVec, out _);
 
         if (inView || isSameAsTarget && !Configuration.DisplayDespiteTargetCircle && obj is ICharacter &&
@@ -138,8 +125,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         if (!TryGetDirection(target, isSameAsTarget, out var screenPosCenterRelative)) return;
 
-        var gameObject = (GameObject*)target.Address;
-        var targetColors = getTargetColors(gameObject);
+        var targetColors = ((GameObject*)target.Address)->GetNamePlateColors();
 
         var halfViewport = ImGui.GetMainViewport().Size * 0.5f;
         var center = ImGui.GetMainViewport().Pos + halfViewport;
@@ -154,7 +140,7 @@ public sealed class Plugin : IDalamudPlugin
         var backgroundDrawList = ImGui.GetBackgroundDrawList();
 
         var layer = cursorProvider.GetTintedCursorPart(
-            isFocus ? CursorProvider.FocusEdgePart : CursorProvider.TargetEdgePart, unchecked((uint)targetColors));
+            isFocus ? CursorProvider.FocusEdgePart : CursorProvider.TargetEdgePart, targetColors.EdgeColor.RGBA);
         var bottomLeft = edgePos - 0.5f * xAxis;
         var bottomRight = edgePos + 0.5f * xAxis;
         var topLeft = bottomLeft - ((float)layer.Height / layer.Width) * yAxis;
@@ -162,8 +148,7 @@ public sealed class Plugin : IDalamudPlugin
         backgroundDrawList.AddImageQuad(layer.Handle, topLeft, topRight, bottomRight, bottomLeft);
 
         layer = cursorProvider.GetTintedCursorPart(
-            isFocus ? CursorProvider.FocusFillPart : CursorProvider.TargetFillPart,
-            unchecked((uint)(targetColors >> 32)));
+            isFocus ? CursorProvider.FocusFillPart : CursorProvider.TargetFillPart, targetColors.Color.RGBA);
         topLeft = bottomLeft - ((float)layer.Height / layer.Width) * yAxis;
         topRight = bottomRight - ((float)layer.Height / layer.Width) * yAxis;
         backgroundDrawList.AddImageQuad(layer.Handle, topLeft, topRight, bottomRight, bottomLeft);
