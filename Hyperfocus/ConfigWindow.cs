@@ -36,7 +36,7 @@ public class ConfigWindow : Window, IDisposable
         using (ImRaii.PushColor(ImGuiCol.Text, ColorHelpers.RgbaVector4ToUint(ImGuiColors.DalamudOrange)))
         {
             ImGui.TextWrapped(
-                "Please note that this plugin will not work in PvP or in duties, so as not to give an unfair advantage to its users."u8);
+                "Please note that this plugin will not work in PvP, so as not to give an unfair advantage to its users."u8);
         }
     }
 
