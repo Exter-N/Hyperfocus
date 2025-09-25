@@ -117,6 +117,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private unsafe void DrawCursor(IGameObject target, bool isFocus, bool isSameAsTarget)
     {
+        if (!target.IsTargetable) return;
         if (!TryGetDirection(target, isSameAsTarget, out var screenPosCenterRelative)) return;
 
         var targetColors = ((GameObject*)target.Address)->GetNamePlateColors();
