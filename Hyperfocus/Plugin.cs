@@ -74,7 +74,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void DrawCursors()
     {
-        if (ClientState.IsPvP) return;
+        if (PluginInterface.UiBuilder.CutsceneActive || GameGui.GameUiHidden || ClientState.IsPvP) return;
 
         var target = TargetManager.Target;
         var focusTarget = TargetManager.FocusTarget;
