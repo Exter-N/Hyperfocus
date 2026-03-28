@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project Sdk="Dalamud.NET.Sdk/14.0.1">
+<Project Sdk="Dalamud.NET.Sdk/14.0.2">
   <PropertyGroup>
-    <Version>0.1.1.0</Version>
-    <Description>Out of sight, still in mind.</Description>
+    <Version>0.1.1.1</Version>
     <PackageProjectUrl>https://github.com/Exter-N/Hyperfocus</PackageProjectUrl>
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
     <IsPackable>false</IsPackable>
